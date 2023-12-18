@@ -12,10 +12,18 @@ class GameStartScreen:
         self.screen = screen
         self.resize()
         self.version = "0.0.1"
+        self.option_history = ""
         self.options = 1
+        self.selected_option = 0
         self.logo_options = 0
+        self.logo_opt = 0
         self.logo = texture[0].lines  # Przypisanie linii z pierwszego obiektu Textures
         self.mini_logo = texture[1].lines  # Przypisanie linii z drugiego obiektu Textures
+        self.element_menu_name = ["START", "OPTIONS", "QUIT"]
+        self.KeyboardOPT = False
+        self.CheckingKeyboard = False
+        self.first_and_last_key = [None, None]
+        self.test =""
 
 
     def resize(self):
@@ -35,31 +43,96 @@ class GameStartScreen:
         scaled_logo = []
 
         max_line_length = max(len(line) for line in self.logo)
-        if max_line_length >= self.width or self.height <= 3:
+        if 60>self.width or len(self.element_menu_name)*4+9>self.height and not self.KeyboardOPT:
+            scaled_logo = ["Zamaly ekran"]
+            self.logo_opt = -10
+        elif 60>self.width or len(self.element_menu_name)+12>self.height and self.KeyboardOPT:
+            scaled_logo = ["Zamaly ekran"]
+            self.logo_opt = -10
+        elif max_line_length >= self.width or 30 >= self.height:
             scaled_logo = self.mini_logo
             self.logo_options = len(self.mini_logo)
+            self.logo_opt = 3
         else:
             scaled_logo = self.logo
             self.logo_options = len(self.logo)
+            self.logo_opt = 4
 
         return scaled_logo
     
     def center_text(self, text):
         return text.center(self.width)
 
+    def element_menu(self, element):
+        if len(element)<11:
+            frame_width = 15
+        else:
+            frame_width = len(element) + 4
+            
+        # Górna linia ramki
+        top_frame = '#' * frame_width
+
+        # Centrowanie elementu w ramce
+        framed_element = f"# {element.center(frame_width - 4)} #"
+
+        # Dolna linia ramki
+        bottom_frame = '#' * frame_width
+
+        # Łączenie wszystkiego w całość
+        framed_menu_element = f"{top_frame}\n{framed_element}\n{bottom_frame}"
+
+        return framed_menu_element
+
+
+
     def load_menu(self, fps):
         self.buffer = [" " * self.width for _ in range(self.height)]
-        self.buffer[0] = f"FPS: {fps}"
-        self.buffer[1] = self.center_text("")
+        scaled_logo = self.scale_logo()
+        if scaled_logo == ["Zamaly ekran"]:
+            for i, line in enumerate(scaled_logo, start=1):
+                if i < self.height:
+                    self.buffer[i] = self.center_text(line)
+            return
+        self.buffer[0] = f"FPS: {fps}"+" "*(self.width-len(f"FPS: {fps}")-1)
+        self.buffer[1] = self.center_text(f"{self.test}")
 
         # Dodanie przeskalowanego logo
         scaled_logo = self.scale_logo()
         for i, line in enumerate(scaled_logo, start=2):
-            if i < self.height:
-                self.buffer[i] = self.center_text(line)
+                if i < self.height:
+                    self.buffer[i] = self.center_text(line)
+        start_line = i-1
+        if not self.KeyboardOPT:
+            for element_name in self.element_menu_name:
+                element_menu = self.element_menu(element_name)  # Załóżmy, że szerokość ramki to 20
+                element_menu_lines = element_menu.split('\n')
+                start_line+=1+self.logo_opt  # Startowy wiersz dla elementu menu, tuż po logo
+
+                for j, line in enumerate(element_menu_lines):
+                    if start_line + j < self.height:
+                        self.buffer[start_line + j] = self.center_text(line)
+        else:
+            start_line+=3
+            self.buffer[start_line] = "—"*self.width
+            start_line+=2
+            for element_name in self.element_menu_name:
+                self.buffer[start_line] = "     "+element_name+" "*(self.width-len(element_name)-len("     "))
+                start_line+=1
+            start_line+=1
+            self.buffer[start_line] = "—"*self.width
+            start_line+=1
+            self.buffer[start_line] = "     "+"SAVE"+" "*(self.width-len("SAVE")-len("     "))
+            start_line+=1
+            self.buffer[start_line] = "     "+"CANCEL"+" "*(self.width-len("CANCEL")-len("     "))
+            if self.CheckingKeyboard:
+                temps = ["———FIRST—KEY———",f"{self.first_and_last_key[0]}".center(15),"——SECOND——KEY——",f"{self.first_and_last_key[1]}".center(15),""," IF NONE PRESS ESCAPE"]
+                start_line=i+4
+                for i, temp in enumerate(temps):
+                    temp = self.buffer[start_line+i][:self.width//2-len(temp)//2]+temp
+                    self.buffer[start_line+i] = temp + " " * (self.width - len(temp))
 
         # Dodanie wersji na końcu
-        self.buffer[self.height-1] = (f"Version: {self.version}").rjust(self.width)
+        self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
 
     def update(self, fps):
         self.buffer = [" " * self.width for _ in range(self.height)]
@@ -68,10 +141,10 @@ class GameStartScreen:
         for row_num, line_to_display in enumerate(self.buffer):
             if row_num == len(self.buffer) - 1:  # Ostatnia linia (wersja)
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(2))
-            elif self.options == 1 and 1 + 1 + self.logo_options + 3 <= row_num <= 1 + 1 + self.logo_options + 3 + 3:
-                self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(2))
-            elif self.options == 2 and 1 + 1 + self.logo_options + 8 <= row_num <= 1 + 1 + self.logo_options + 8 + 3:
-                self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(2))
+            elif self.logo_options + self.logo_opt*self.options+self.options <= row_num < self.logo_options + self.logo_opt*self.options+self.options + 3 and not self.KeyboardOPT:
+                self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
+            elif self.logo_options + 4 + self.options == row_num and self.KeyboardOPT:
+                self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
             else:
                 self.screen.addstr(row_num, 0, line_to_display)
         self.screen.refresh()

@@ -6,20 +6,43 @@ from pynput.keyboard import Key, KeyCode
 from pomocnicze.get_os_path import get_config_path
 
 DEFAULT_KEYS = {
-    "JUMP": ["Key.space", None],
+    "O_JUMP": ["Key.space", None],
     "QUIT": ["Key.esc", None],
-    "FORWARD": ["'w'", None],
-    "BACKWARD": ["'s'", None],
-    "LEFT": ["'a'", None],
-    "RIGHT": ["'d'", None],
-    "LOOK_UP": ["Key.up", None],
-    "LOOK_DOWN": ["Key.down", None],
-    "LOOK_LEFT": ["Key.left", None],
-    "LOOK_RIGHT": ["Key.right", None]
+    "A_FORWARD": ["'w'", None],
+    "A_BACKWARD": ["'s'", None],
+    "A_LEFT": ["'a'", None],
+    "A_RIGHT": ["'d'", None],
+    "A_LOOK_UP": ["Key.up", None],
+    "A_LOOK_DOWN": ["Key.down", None],
+    "A_LOOK_LEFT": ["Key.left", None],
+    "A_LOOK_RIGHT": ["Key.right", None],
+    "S_FORWARD": ["'w'", "Key.up"],
+    "S_BACKWARD": ["'s'", "Key.down"],
+    "S_LEFT": ["'a'", "Key.left"],
+    "S_RIGHT": ["'d'", "Key.right"],
+    "O_RUN": ["Key.shift", None],
+    "O_SNEAK": ["Key.ctrl", None],
+    "UP": ["Key.up", "'w'"],
+    "DOWN": ["Key.down", "'s'"],
+    "CONTROL_LEFT": ["Key.left", "'a'"],
+    "CONTROL_RIGHT": ["Key.right", "'d'"],
+    "ENTER": ["Key.enter", "Key.space"]
 }
+
 
 class Keyboard(object):
     def __init__(self):
+        self.KEYS_MAP = {"Key.space": "SPACE",
+            "Key.left": "←",
+            "Key.right": "→",
+            "Key.up": "↑",
+            "Key.down": "↓",
+            "Key.enter": "ENTER",
+            "Key.tab": "TAB",
+            "Key.shift": "SHIFT",
+            "Key.ctrl_l": "CTRL",
+            "Key.alt_l": "ALT",
+            "Key.ctrl_r": "CTRL"}
         self.config_file = get_config_path()
         if not os.path.exists(self.config_file):
             self.key_list = DEFAULT_KEYS
@@ -40,11 +63,6 @@ class Keyboard(object):
         with open(self.config_file, 'r') as file:
             self.key_list = json.load(file)
 
-    def set_key(self, action, primary_key, secondary_key=None):
-        if action in self.key_list:
-            self.key_list[action] = [primary_key, secondary_key]
-            self.save_config()
-
     def get_assigned_keys(self, action):
         return self.key_list.get(action, None)
     
@@ -62,3 +80,25 @@ class Keyboard(object):
             else:
                 key = KeyCode.from_char(key.strip("'"))
         return key in self.pressed_keys
+    
+    def user_input_getKeybord(self):
+        """
+        Nasłuchuje wciśnięcia i odciśnięcia klawisza przez użytkownika, zwracając jego wartość.
+        Zwraca None, jeśli naciśnięto klawisz Escape. Umożliwia ponowne użycie klawisza po jego odciśnięciu.
+        """
+        # Zapisz aktualny stan wciśniętych klawiszy
+        initial_pressed_keys = set(self.pressed_keys)
+
+        while True:
+
+            new_pressed_keys = self.pressed_keys - initial_pressed_keys
+
+            for key in new_pressed_keys:
+                if key == Key.esc:
+                    return None
+                else:
+                    # Jeśli key jest KeyCode, zwróć jego char, w przeciwnym razie zwróć nazwę klawisza
+                    return "'"+key.char+"'" if isinstance(key, KeyCode) else "Key."+key.name
+            initial_pressed_keys = set(self.pressed_keys)
+
+
