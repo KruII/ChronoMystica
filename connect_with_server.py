@@ -1,35 +1,73 @@
 import json
 import os
 import socket
+import threading
+import time
 
 from pomocnicze.get_os_path import get_config_path
 
 class OnlineServer:
     
     def __init__(self):
-        self.ip = "83.168.107.86"
-        self.port = 65432
+        '''
+        Funkcji inicjująca
+        '''
+        self.ip = "localhost"                                   # Adres IP serwera
+        self.port = 65432                                       # Numer Portu serwera
         self.config_file = get_config_path("IP_Config.json")
         if not os.path.exists(self.config_file):
-            self.save_config()
+            self.create_config()
         else:
             self.load_config()
+        self.connected = False                                  # Czy połączony z serwerem
+        self.ping = 0
         
-    def save_config(self):
+    def create_config(self):
+        '''
+        Tworzy plik JSON z adresem IP i numerem Portu
+        '''
         with open(self.config_file, 'w') as file:
             json.dump([self.ip, self.port], file, indent=4)
 
     def load_config(self):
+        '''
+        Wczytuję z pliku JSON adres IP i numer Portu
+        '''
         with open(self.config_file, 'r') as file:
             self.ip, self.port = json.load(file)
-        
+
+    def monitor_connection(self):
+        while self.connected and self.monitor_heart:
+            try:
+                start_time = time.time()  # Rozpoczęcie pomiaru czasu
+                self.socket.send(b'heartbeat')
+                response = self.socket.recv(1024)
+                if response:
+                    end_time = time.time()  # Koniec pomiaru czasu
+                    self.ping = (end_time - start_time) * 1000  # Ping w milisekundach
+                else:
+                    raise ConnectionError("Brak odpowiedzi od serwera")
+            except Exception as e:
+                print(f"Połączenie z serwerem zostało zerwane: {e}")
+                self.connected = False
+                break
+            time.sleep(1)  # Odczekaj sekundę przed następnym sprawdzeniem
+
+
     def connect_with_serwer(self):
-        # Tworzy gniazdo (socket) i łączy się z serwerem
+        '''
+        Próba połączenia się z serwerem
+        '''
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect((self.ip, self.port))
-                return True
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.connect((self.ip, self.port))
+            self.connected = True
+            self.monitor_heart = True
+
+            # Uruchomienie monitorowania połączenia w osobnym wątku
+            threading.Thread(target=self.monitor_connection, daemon=True).start()
+            return True
         except Exception as e:
-            print(f"Nie można połączyć: {e}")
+            self.connected = False
             return False
 

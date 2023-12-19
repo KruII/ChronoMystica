@@ -6,12 +6,25 @@ import simpleaudio as sa
 class Audio:
     
     def __init__(self):
-        self.sciezki = ["audio/inputs/", "audio/game/", "audio/music/"]
-        self.format = ".wav"
-        self.audia = {}
+        '''
+        Funkcji inicjująca
+        '''
+        self.sciezki = ["audio/inputs/", "audio/game/", "audio/music/"]                     # Standardowe ścieżki Audio
+        self.format = ".wav"                                                                # Standardowy format pliku
+        self.audia = {}                                                                     # Mapa przechowywanego audio
 
     def set_audio_list(self, numery_audio, volume_scales):
-        self.audia = {}  # Resetowanie słownika
+        '''
+        Ustawiania mapy audio dla wybranych ścieżek audio
+        
+        Parametry:
+            numery_audio (int[]):
+                Tablica numerów ścieżek audio
+            
+            volume_scales (float[]):
+                Tablica głośności przypisana do numerów ścieżek
+        '''
+        self.audia = {}                                                                     # Resetowanie słownika
         for i, numer in enumerate(numery_audio):
             sciezka = self.sciezki[numer]
             volume_scale = volume_scales[i]
@@ -22,6 +35,16 @@ class Audio:
                     self.audia[nazwa_audio] = self.change_volume(pelna_sciezka, volume_scale)
 
     def audio_play(self, audio_name, numer_sciezki):
+        '''
+        Odtwarzanie audio z mapy "audia"
+        
+        Parametry:
+            audio_name (str):
+                Nazwa audio do otworzenia
+            
+            numer_sciezki (int):
+                Numer ścieżki z jakiej ma odtworzyć
+        '''
         audio_name = self.sciezki[numer_sciezki]+audio_name
         try:
             self.audia[audio_name].play()
@@ -31,6 +54,16 @@ class Audio:
             print(f"Error: Plik '{audio_name}' nie istnieje")
             
     def change_volume(self, file_path, volume_scale):
+        '''
+        Zmiana głośności audio dla danego pliku
+        
+        Parametry:
+            file_path (str):
+                Adres pliku z jego nazwą
+            
+            volume_scale (float):
+                Wartość głośności pliku
+        '''
         # Otwórz plik WAV i przeczytaj dane
         with wave.open(file_path, 'rb') as wave_file:
             params = wave_file.getparams()

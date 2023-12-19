@@ -5,6 +5,7 @@ from pynput.keyboard import Key, KeyCode
 
 from pomocnicze.get_os_path import get_config_path
 
+#   Ustawienie klawiszy domyślnych
 DEFAULT_KEYS = {
     "O_JUMP": ["Key.space", None],
     "QUIT": ["Key.esc", None],
@@ -32,7 +33,12 @@ DEFAULT_KEYS = {
 
 class Keyboard(object):
     def __init__(self):
-        self.KEYS_MAP = {"Key.space": "SPACE",
+        '''
+        Funkcji inicjująca
+        '''
+        # Mapa Klawiszy specjalnych
+        self.KEYS_MAP = {
+            "Key.space": "SPACE",
             "Key.left": "←",
             "Key.right": "→",
             "Key.up": "↑",
@@ -42,7 +48,8 @@ class Keyboard(object):
             "Key.shift": "SHIFT",
             "Key.ctrl_l": "CTRL",
             "Key.alt_l": "ALT",
-            "Key.ctrl_r": "CTRL"}
+            "Key.ctrl_r": "CTRL"
+            }
         self.config_file = get_config_path("keyboard_setting.json")
         if not os.path.exists(self.config_file):
             self.key_list = DEFAULT_KEYS
@@ -56,23 +63,57 @@ class Keyboard(object):
         self.listener.start()
 
     def save_config(self):
+        '''
+        Tworzy i Zapisuję plik JSON z przypisanymi klawiszami
+        '''
         with open(self.config_file, 'w') as file:
             json.dump(self.key_list, file, indent=4)
 
     def load_config(self):
+        '''
+        Wczytuję przypisane klawisze z pliku JSON
+        '''
         with open(self.config_file, 'r') as file:
             self.key_list = json.load(file)
 
     def get_assigned_keys(self, action):
+        '''
+        Zwraca klawisze z mapy dla danej nazwy
+        
+        Parametry:
+            action (str):
+                Nazwa funcji klawisza
+        '''
         return self.key_list.get(action, None)
     
     def on_press(self, key):
+        '''
+        Dodaje do listy wciśniętych klawiszy
+        
+        Parametry:
+            key:
+                Klawisz jaki został wciśniety
+        '''
         self.pressed_keys.add(key)
 
     def on_release(self, key):
+        '''
+        Usuwa z listy wciśniętych klawiszy
+        
+        Parametry:
+            key:
+                Klawisz jaki został odciśniety
+        '''
         self.pressed_keys.discard(key)
 
     def is_key_pressed(self, key):
+        '''
+        Zwraca czy jest klawisz jest na liście wciśniętych
+        
+        Parametry:
+            key:
+                Klawisz jaki został wciśniety
+        '''
         # Jeśli key jest stringiem, należy przekonwertować go na odpowiedni obiekt Key lub KeyCode
         if isinstance(key, str):
             if key.startswith('Key.'):
@@ -82,10 +123,10 @@ class Keyboard(object):
         return key in self.pressed_keys
     
     def user_input_getKeybord(self):
-        """
+        '''
         Nasłuchuje wciśnięcia i odciśnięcia klawisza przez użytkownika, zwracając jego wartość.
         Zwraca None, jeśli naciśnięto klawisz Escape. Umożliwia ponowne użycie klawisza po jego odciśnięciu.
-        """
+        '''
         # Zapisz aktualny stan wciśniętych klawiszy
         initial_pressed_keys = set(self.pressed_keys)
 

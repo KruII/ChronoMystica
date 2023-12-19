@@ -4,14 +4,28 @@ from reader_files import Textures
 from controll_script import Control
 
 def curses_init(screen):
+    '''
+    Inicjacja curses
+    
+    Parametry:
+        screen:
+            Ekran
+    '''
     curses.curs_set(0)
     curses.init_color(2, 38, 230, 0)
-    curses.init_pair(1, curses.COLOR_BLACK, 2,)  # Ściany
-    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)    # Smok
-    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Czerwonyc
+    curses.init_pair(1, curses.COLOR_BLACK, 2,)                             # Menu: Aktualny Element
+    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)               # Menu: Wersja
+    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)             # Menu: Domyślny
     screen.nodelay(True)
 
 def main(screen):
+    '''
+    Głowna funkcja odpowiadająca za wywołanie funcji startowych
+    
+    Parametry:
+        screen:
+            Ekran
+    '''
     curses_init(screen)
     textures_names = ["LOGO", "LOGO_MIN",                                   # 0     LOGO
                       "OPTIONS_LOGO", "OPTIONS_LOGO_MIN",                   # 1     OPTIONS
@@ -28,5 +42,8 @@ def main(screen):
     curses.endwin()
     
 if __name__ == "__main__":
+    '''
+    START
+    '''
     os.system(f'echo -ne "\033]0;CHRONOMYSTICA\007"')
     curses.wrapper(main)

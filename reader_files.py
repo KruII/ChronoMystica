@@ -3,6 +3,13 @@ import os
 class Textures:
     
     def __init__(self, texture_name):
+        '''
+        Funkcji inicjująca
+        
+        Parametry:
+            texture (str[]):
+                Nazwy plików z teksturami
+        '''
         self.lines = []  # Inicjalizacja pustej listy dla wierszy tekstury
         texture_path = os.path.join("textures", texture_name)
         try:
