@@ -43,7 +43,7 @@ class Keyboard(object):
             "Key.ctrl_l": "CTRL",
             "Key.alt_l": "ALT",
             "Key.ctrl_r": "CTRL"}
-        self.config_file = get_config_path()
+        self.config_file = get_config_path("keyboard_setting.json")
         if not os.path.exists(self.config_file):
             self.key_list = DEFAULT_KEYS
             self.save_config()

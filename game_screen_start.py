@@ -23,6 +23,10 @@ class GameStartScreen:
         self.KeyboardOPT = False
         self.CheckingKeyboard = False
         self.first_and_last_key = [None, None]
+        self.AudioOPT = False
+        self.CheckingAudio = False
+        self.ZaMalyEkran = False
+        self.audio_level = {}
         self.test =""
 
 
@@ -41,15 +45,18 @@ class GameStartScreen:
 
     def scale_logo(self):
         scaled_logo = []
+        self.ZaMalyEkran = False
 
         max_line_length = max(len(line) for line in self.logo)
         if 60>self.width or len(self.element_menu_name)*4+9>self.height and not self.KeyboardOPT:
+            self.ZaMalyEkran = True
             scaled_logo = ["Zamaly ekran"]
             self.logo_opt = -10
         elif 60>self.width or len(self.element_menu_name)+12>self.height and self.KeyboardOPT:
+            self.ZaMalyEkran = True
             scaled_logo = ["Zamaly ekran"]
             self.logo_opt = -10
-        elif max_line_length >= self.width or 30 >= self.height:
+        elif max_line_length >= self.width or len(self.element_menu_name)*5+len(self.logo)+3 >= self.height:
             scaled_logo = self.mini_logo
             self.logo_options = len(self.mini_logo)
             self.logo_opt = 3
@@ -102,7 +109,7 @@ class GameStartScreen:
                 if i < self.height:
                     self.buffer[i] = self.center_text(line)
         start_line = i-1
-        if not self.KeyboardOPT:
+        if not self.KeyboardOPT and not self.AudioOPT:
             for element_name in self.element_menu_name:
                 element_menu = self.element_menu(element_name)  # Załóżmy, że szerokość ramki to 20
                 element_menu_lines = element_menu.split('\n')
@@ -111,7 +118,7 @@ class GameStartScreen:
                 for j, line in enumerate(element_menu_lines):
                     if start_line + j < self.height:
                         self.buffer[start_line + j] = self.center_text(line)
-        else:
+        elif self.KeyboardOPT and not self.AudioOPT:
             start_line+=3
             self.buffer[start_line] = "—"*self.width
             start_line+=2
@@ -130,6 +137,35 @@ class GameStartScreen:
                 for i, temp in enumerate(temps):
                     temp = self.buffer[start_line+i][:self.width//2-len(temp)//2]+temp
                     self.buffer[start_line+i] = temp + " " * (self.width - len(temp))
+        elif not self.KeyboardOPT and self.AudioOPT:
+            start_line+=3
+            self.buffer[start_line] = "—"*self.width
+            start_line+=self.logo_opt-2
+            self.buffer[start_line] = self.center_text("———MASTER———")
+            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["MASTER"]+"."*(10-len("#"*self.audio_level["MASTER"])))
+            self.buffer[start_line+2] = self.center_text("————————————")
+            start_line+=self.logo_opt+1
+            self.buffer[start_line] = self.center_text("———MUSIC————")
+            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["MUSIC"]+"."*(10-len("#"*self.audio_level["MUSIC"])))
+            self.buffer[start_line+2] = self.center_text("————————————")
+            start_line+=self.logo_opt+1
+            self.buffer[start_line] = self.center_text("————GAME————")
+            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["GAME"]+"."*(10-len("#"*self.audio_level["GAME"])))
+            self.buffer[start_line+2] = self.center_text("————————————")
+            start_line+=self.logo_opt+1
+            self.buffer[start_line] = self.center_text("———INPUTS———")
+            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["INPUTS"]+"."*(10-len("#"*self.audio_level["INPUTS"])))
+            self.buffer[start_line+2] = self.center_text("————————————")
+            element_menu = self.element_menu("BACK")
+            element_menu_lines = element_menu.split('\n')
+            start_line+=self.logo_opt+1
+
+            for j, line in enumerate(element_menu_lines):
+                if start_line + j < self.height:
+                    self.buffer[start_line + j] = self.center_text(line)
+        else:
+            self.KeyboardOPT, self.AudioOPT = False
+            print("Fatal error")
 
         # Dodanie wersji na końcu
         self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)

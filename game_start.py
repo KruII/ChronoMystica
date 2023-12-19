@@ -20,6 +20,7 @@ def main(screen):
                       "CONTROLS_LOGO", "CONTROLS_LOGO_MIN",                 # 4     CONTROLS
                       "KEYBOARD_LOGO", "KEYBOARD_LOGO_MIN",                 # 5     KEYBOARD
                       "AUDIO_LOGO", "AUDIO_LOGO_MIN",                       # 6     AUDIO            
+                      "GAMEMODE_LOGO", "GAMEMODE_LOGO_MIN",                 # 7     GAMEMODE
                       ]                 
     texture = [Textures(name_textures) for name_textures in textures_names]
     Control(screen, texture).start()

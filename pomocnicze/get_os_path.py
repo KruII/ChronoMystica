@@ -2,7 +2,7 @@ import os
 import platform
 
 
-def get_config_path():
+def get_config_path(name):
     if platform.system() == "Windows":
         config_dir = os.path.join(os.getenv('APPDATA'), "ChronoMystica", "settings")
     else:  # Linux i inne systemy Unix
@@ -11,4 +11,4 @@ def get_config_path():
     if not os.path.exists(config_dir):
         os.makedirs(config_dir)
 
-    return os.path.join(config_dir, "keyboard_setting.json")
+    return os.path.join(config_dir, name)
