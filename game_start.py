@@ -13,7 +13,7 @@ def curses_init(screen):
     '''
     curses.curs_set(0)
     curses.init_color(2, 38, 230, 0)
-    curses.init_pair(1, curses.COLOR_BLACK, 2,)                             # Menu: Aktualny Element
+    curses.init_pair(1, curses.COLOR_WHITE, 2,)                             # Menu: Aktualny Element
     curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)               # Menu: Wersja
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)             # Menu: Domyślny
     screen.nodelay(True)
@@ -37,9 +37,13 @@ def main(screen):
                       "GAMEMODE_LOGO", "GAMEMODE_LOGO_MIN",                 # 7     GAMEMODE
                       ]                 
     texture = [Textures(name_textures) for name_textures in textures_names]
-    Control(screen, texture).start()
-    curses.flushinp()
-    curses.endwin()
+    try:
+        Control(screen, texture).start()
+    except Exception as e:
+        print(f"FATAL ERROR: {e}")
+    finally:
+        curses.flushinp()
+        curses.endwin()
     
 if __name__ == "__main__":
     '''

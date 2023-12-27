@@ -1,7 +1,6 @@
 import json
 import os
 import socket
-import threading
 import time
 
 from pomocnicze.get_os_path import get_config_path
@@ -21,6 +20,8 @@ class OnlineServer:
             self.load_config()
         self.connected = False                                  # Czy połączony z serwerem
         self.ping = 0
+        self.ping_measurements = []                              # Lista do przechowywania pomiarów pingów
+
         
     def create_config(self):
         '''
@@ -37,21 +38,25 @@ class OnlineServer:
             self.ip, self.port = json.load(file)
 
     def monitor_connection(self):
-        while self.connected and self.monitor_heart:
+        if self.connected:
             try:
                 start_time = time.time()  # Rozpoczęcie pomiaru czasu
                 self.socket.send(b'heartbeat')
                 response = self.socket.recv(1024)
                 if response:
-                    end_time = time.time()  # Koniec pomiaru czasu
-                    self.ping = (end_time - start_time) * 1000  # Ping w milisekundach
+                    
+                    end_time = time.time()
+                    ping = (end_time - start_time) * 1000  # Ping w milisekundach
+                    self.ping_measurements.append(ping)
+                    if len(self.ping_measurements) > 20:
+                        self.ping = sum(self.ping_measurements) / len(self.ping_measurements)
+                        self.ping_measurements = []
                 else:
-                    raise ConnectionError("Brak odpowiedzi od serwera")
+                    #raise ConnectionError("Brak odpowiedzi od serwera")
+                    pass
             except Exception as e:
-                print(f"Połączenie z serwerem zostało zerwane: {e}")
+                #print(f"Połączenie z serwerem zostało zerwane: {e}")
                 self.connected = False
-                break
-            time.sleep(1)  # Odczekaj sekundę przed następnym sprawdzeniem
 
 
     def connect_with_serwer(self):
@@ -62,12 +67,30 @@ class OnlineServer:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.connect((self.ip, self.port))
             self.connected = True
-            self.monitor_heart = True
 
-            # Uruchomienie monitorowania połączenia w osobnym wątku
-            threading.Thread(target=self.monitor_connection, daemon=True).start()
             return True
         except Exception as e:
             self.connected = False
             return False
 
+    def get_server_list(self, search_query=""):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((self.ip, self.port))
+                s.send(b'get_servers')
+                response = s.recv(4096)
+                server_list = json.loads(response.decode('utf-8'))
+                if server_list == []:
+                    return [{'id': 1, 'nazwa': 'Brak', 'opis': 'Brak Serwerów', 'ilosc_graczy': -1}]
+
+                # Filtruj serwery według szukanej frazy (case-insensitive)
+                if search_query:
+                    search_query = search_query.replace('.', '').lower()
+                    server_list = [server for server in server_list if search_query in server["nazwa"].lower()]
+                    
+                return server_list
+        except Exception as e:
+            #print(f"Błąd podczas pobierania listy serwerów: {e}")
+            return []
+            
+        

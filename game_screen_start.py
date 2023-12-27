@@ -20,7 +20,6 @@ class GameStartScreen:
                 Linijka po linijce jak ma wyglądać dla wszystkich wczytanych
         '''
         self.screen = screen
-        self.resize()                                                              # Inicjacja ustalenia miejsca w oknie
         self.version = "0.0.1"                                                     # Wersja Gry do wyświetlania
         self.option_history = ""                                                   # Historia wyboru opcji 
         self.options = 1                                                           # Numer przycisku/opcji                                                 # 
@@ -33,18 +32,29 @@ class GameStartScreen:
         self.CheckingKeyboard = False                                              # Czy dodać widok wpisania klawiszy
         self.first_and_last_key = [None, None]                                     # Tablica dla wyświetlania CheckingKeyboard
         self.AudioOPT = False                                                      # Czy menu dla ustawiania głośności audio
-        self.ZaMalyEkran = False                                                   # Czy ekran jest zbyt mały
+        self.TooSmallScreen = False                                                # Czy ekran jest zbyt mały
         self.audio_level = {}                                                      # Mapa poziomu głośności
-        self.connecting = False                                                    # Czy łączy z serwerem
+        self.connecting = ""                                                       # Czy łączy z serwerem
         self.animation_connecting = [0, 0, 5,                                      # Aktualny znak, Opóźnienie++, Opóźnienie_MAX
                                      '|', '/', '—', '\\', '|', '/', '—', '\\']     # Znaki Animacji 
         self.test =""                                                              # String do testowania działania
-
+        self.ServerList = None                                                       # Lista Serwerów
+        self.MultiPlayerServer = {
+                                  "Page":        1,
+                                  "MAX_Page":    1,
+                                  "Option":      1,
+                                  "Size_Page":   1,
+                                  "Visible":     False,
+                                  "Search_Text": "."*11,
+                                  "Refresh":     False,
+                                 }
+        
+        self.resize()                                                              # Inicjacja ustalenia miejsca w oknie
 
     def resize(self):
         '''
         Ustalanie maksymalnej wysokości i długości
-        '''
+        '''            
         try:         # Linux
             w, h = os.get_terminal_size()
             curses.resizeterm(h, w)
@@ -64,15 +74,12 @@ class GameStartScreen:
         '''
         
         scaled_logo = []
-        self.ZaMalyEkran = False
 
         max_line_length = max(len(line) for line in self.logo)
         if 60>self.width or len(self.element_menu_name)*4+9>self.height and not self.KeyboardOPT:
-            self.ZaMalyEkran = True
             scaled_logo = ["Zamaly ekran"]
             self.logo_opt = -10
         elif 60>self.width or len(self.element_menu_name)+12>self.height and self.KeyboardOPT:
-            self.ZaMalyEkran = True
             scaled_logo = ["Zamaly ekran"]
             self.logo_opt = -10
         elif max_line_length >= self.width or len(self.element_menu_name)*5+len(self.logo)+3 >= self.height:
@@ -122,7 +129,35 @@ class GameStartScreen:
         framed_menu_element = f"{top_frame}\n{framed_element}\n{bottom_frame}"
 
         return framed_menu_element
-
+    
+    def fix_fill_line(self, text):
+        return text+" "*(self.width - len(text))
+    
+    def server_element_reader(self, element):
+        return " "+element["nazwa"]+" "*(11-len(element["nazwa"]))+" │ "+(element["opis"][:self.width-29]+"..." if len(element["opis"])>self.width-26 else element["opis"][:self.width-26]) +" "*(self.width-26-len(element["opis"]))+" │ "+str(element["ilosc_graczy"]).rjust(5)+"   "
+    
+    def tab_printer(self, char):
+        return "─"*13+char+"─"*(self.width-24)+char+"─"*9
+    
+    def tab_page_setter(self):
+        server_pages = []
+        
+        Max_height_page = int((self.height - 12)//2)
+                
+        server_page = []
+        for element_menu in self.element_menu_name:
+            if len(server_page) < Max_height_page:
+                server_page.append(element_menu)
+            else:
+                server_pages.append(server_page)
+                server_page = [element_menu]
+            
+        if server_page:
+            server_pages.append(server_page)
+                
+        self.MultiPlayerServer["MAX_Page"] = len(server_pages)
+        
+        return server_pages
 
 
     def load_menu(self, fps):
@@ -135,7 +170,9 @@ class GameStartScreen:
         '''
         self.buffer = [" " * self.width for _ in range(self.height)]
         self.buffer[0] = f"FPS: {fps}"+" "*(self.width-len(f"FPS: {fps}")-1)
-        if self.connecting:
+        self.TooSmallScreen = False
+    
+        if self.connecting != "":
             if self.animation_connecting[1]<self.animation_connecting[2]:
                 self.animation_connecting[1]+=1
             else:
@@ -144,11 +181,45 @@ class GameStartScreen:
                     self.animation_connecting[0]+=1
                 else:
                     self.animation_connecting[0]=0
-            self.buffer[1] = self.center_text("Connecting "+self.animation_connecting[self.animation_connecting[0]+3])
+            self.buffer[1] = self.center_text(self.connecting+"ing "+self.animation_connecting[self.animation_connecting[0]+3])
             self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
+            return
+        
+        if self.MultiPlayerServer["Visible"] == True:
+            try:
+                if self.height < 14 or self.width < 37:
+                    self.TooSmallScreen = True
+                    self.buffer[1] = self.center_text("Zamaly ekran")
+                    self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
+                    return
+                server_pages = self.tab_page_setter()
+                self.MultiPlayerServer["Size_Page"] = len(server_pages[self.MultiPlayerServer["Page"]-1])
+                start_line = 1
+                self.buffer[start_line] = "─"*self.width
+                self.buffer[start_line+1] = self.center_text(f'PAGE: {self.MultiPlayerServer["Page"]}')
+                start_line += 2
+                self.buffer[start_line] = self.tab_printer("┬")
+                self.buffer[start_line+1] = " SERVER NAME │ DESCRIPTION"+" "*(self.width - 37)+" │ PLAYERS "
+                start_line += 2
+                
+                for element_menu in server_pages[self.MultiPlayerServer["Page"]-1]:
+                    self.buffer[start_line] = self.tab_printer("┼")
+                    self.buffer[start_line+1] = self.server_element_reader(element_menu)
+                    start_line+=2
+
+                self.buffer[start_line] = self.tab_printer("┴")
+                
+                self.buffer[self.height-5] = self.fix_fill_line(" SEARCH NAME: " +self.MultiPlayerServer["Search_Text"])[:self.width-8]+"SEARCH  "
+                self.buffer[self.height-4] = "  < "+" "*(self.width-8)+" >  "
+                self.buffer[self.height-3] = "  BACK"+" "*(self.width-14)+"RELOAD "
+                self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
+            except:
+                self.MultiPlayerServer["Page"] = 1
+                self.options = 1
             return
         scaled_logo = self.scale_logo()
         if scaled_logo == ["Zamaly ekran"]:
+            self.TooSmallScreen = True
             self.buffer[1] = self.center_text(scaled_logo[0])
             self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
             return
@@ -175,14 +246,14 @@ class GameStartScreen:
             self.buffer[start_line] = "—"*self.width
             start_line+=2
             for element_name in self.element_menu_name:
-                self.buffer[start_line] = "     "+element_name+" "*(self.width-len(element_name)-len("     "))
+                self.buffer[start_line] = self.fix_fill_line("     "+element_name)
                 start_line+=1
             start_line+=1
             self.buffer[start_line] = "—"*self.width
             start_line+=1
-            self.buffer[start_line] = "     "+"SAVE"+" "*(self.width-len("SAVE")-len("     "))
+            self.buffer[start_line] = self.fix_fill_line("     "+"SAVE")
             start_line+=1
-            self.buffer[start_line] = "     "+"CANCEL"+" "*(self.width-len("CANCEL")-len("     "))
+            self.buffer[start_line] = self.fix_fill_line("     "+"CANCEL")
             if self.CheckingKeyboard:
                 temps = ["———FIRST—KEY———",f"{self.first_and_last_key[0]}".center(15),"——SECOND——KEY——",f"{self.first_and_last_key[1]}".center(15),""," IF NONE PRESS ESCAPE"]
                 start_line=i+4
@@ -192,22 +263,13 @@ class GameStartScreen:
         elif not self.KeyboardOPT and self.AudioOPT:
             start_line+=3
             self.buffer[start_line] = "—"*self.width
-            start_line+=self.logo_opt-2
-            self.buffer[start_line] = self.center_text("———MASTER———")
-            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["MASTER"]+"."*(10-len("#"*self.audio_level["MASTER"])))
-            self.buffer[start_line+2] = self.center_text("————————————")
-            start_line+=self.logo_opt+1
-            self.buffer[start_line] = self.center_text("———MUSIC————")
-            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["MUSIC"]+"."*(10-len("#"*self.audio_level["MUSIC"])))
-            self.buffer[start_line+2] = self.center_text("————————————")
-            start_line+=self.logo_opt+1
-            self.buffer[start_line] = self.center_text("————GAME————")
-            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["GAME"]+"."*(10-len("#"*self.audio_level["GAME"])))
-            self.buffer[start_line+2] = self.center_text("————————————")
-            start_line+=self.logo_opt+1
-            self.buffer[start_line] = self.center_text("———INPUTS———")
-            self.buffer[start_line+1] = self.center_text("#"*self.audio_level["INPUTS"]+"."*(10-len("#"*self.audio_level["INPUTS"])))
-            self.buffer[start_line+2] = self.center_text("————————————")
+            start_line-=3
+            temp_menu = ["MASTER", "MUSIC", "GAME", "INPUTS"]
+            for temp_element in temp_menu:
+                start_line+=self.logo_opt+1
+                self.buffer[start_line] = self.center_text(temp_element.center(12).replace(" ", "—"))
+                self.buffer[start_line+1] = self.center_text("#"*self.audio_level[temp_element]+"."*(10-len("#"*self.audio_level[temp_element])))
+                self.buffer[start_line+2] = self.center_text("————————————")
             element_menu = self.element_menu("BACK")
             element_menu_lines = element_menu.split('\n')
             start_line+=self.logo_opt+1
@@ -236,10 +298,36 @@ class GameStartScreen:
         for row_num, line_to_display in enumerate(self.buffer):
             if row_num == len(self.buffer) - 1:             # Ostatnia linia (wersja)
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(2))
-            elif self.logo_options + self.logo_opt*self.options+self.options <= row_num < self.logo_options + self.logo_opt*self.options+self.options + 3 and not self.KeyboardOPT:
+            elif self.logo_options + self.logo_opt*self.options+self.options <= row_num < self.logo_options + self.logo_opt*self.options+self.options + 3 and not self.KeyboardOPT and not self.MultiPlayerServer["Visible"]:
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
-            elif self.logo_options + 4 + self.options == row_num and self.KeyboardOPT:
+            elif self.KeyboardOPT and self.logo_options + 4 + self.options == row_num:
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
+            elif self.MultiPlayerServer["Visible"] and 4+self.options*2 == row_num and self.MultiPlayerServer["Size_Page"]>=self.options:
+                self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
+            elif self.MultiPlayerServer["Visible"] and row_num == len(self.buffer) - 5 and self.MultiPlayerServer["Size_Page"]+1==self.options:
+                self.screen.addstr(row_num, 0, line_to_display)
+                if self.MultiPlayerServer["Option"] == 1:
+                    self.screen.addstr(row_num, 0, line_to_display[:14])
+                    self.screen.addstr(row_num, 14, line_to_display[14:14+len(self.MultiPlayerServer["Search_Text"])], curses.color_pair(1))
+                elif self.MultiPlayerServer["Option"] == 2: 
+                    self.screen.addstr(row_num, self.width-1, line_to_display[self.width-1:self.width])
+                    self.screen.addstr(row_num, self.width-9, line_to_display[self.width-9:self.width-1], curses.color_pair(1))
+            elif self.MultiPlayerServer["Visible"] and row_num == len(self.buffer) - 4 and self.MultiPlayerServer["Size_Page"]+2==self.options:
+                self.screen.addstr(row_num, 0, line_to_display)
+                if self.MultiPlayerServer["Option"] == 1:
+                    self.screen.addstr(row_num, 0, line_to_display[:1])
+                    self.screen.addstr(row_num, 1, line_to_display[1:4], curses.color_pair(1))
+                elif self.MultiPlayerServer["Option"] == 2: 
+                    self.screen.addstr(row_num, self.width-1, line_to_display[self.width-1:self.width])
+                    self.screen.addstr(row_num, self.width-4, line_to_display[self.width-4:self.width-1], curses.color_pair(1))
+            elif self.MultiPlayerServer["Visible"] and row_num == len(self.buffer) - 3 and self.MultiPlayerServer["Size_Page"]+3==self.options:
+                self.screen.addstr(row_num, 0, line_to_display)
+                if self.MultiPlayerServer["Option"] == 1:
+                    self.screen.addstr(row_num, 0, line_to_display[:1])
+                    self.screen.addstr(row_num, 1, line_to_display[1:7], curses.color_pair(1))
+                elif self.MultiPlayerServer["Option"] == 2: 
+                    self.screen.addstr(row_num, self.width-1, line_to_display[self.width-1:self.width])
+                    self.screen.addstr(row_num, self.width-9, line_to_display[self.width-9:self.width-1], curses.color_pair(1))
             else:
                 self.screen.addstr(row_num, 0, line_to_display)
         self.screen.refresh()

@@ -1,4 +1,5 @@
 import curses
+import re
 import signal
 import threading
 import time
@@ -41,6 +42,8 @@ class Control:
         self.quality_map = {3: 'H', 2: 'M', 1: 'L'}                                                # Mapa do wyświetlania znaku jakości dla
         self.last_up_press_time = 0
         self.last_down_press_time = 0
+        self.last_left_press_time = 0
+        self.last_right_press_time = 0
         self.last_enter_press_time = 0
         self.last_quit_press_time = 0
         self.key_repeat_delay = 0.5                                                                 # Opóźnienie między kolejnymi ruchami przy przytrzymanym klawiszu
@@ -48,7 +51,7 @@ class Control:
         self.przedrotki = []
         self.audio.set_audio_list([0],[self.audio_level["INPUTS"]*self.audio_level["MASTER"]/100])  # Inicjalizacja z wszystkimi dostępnymi ścieżkami
         self.screen_thread.audio_level = self.audio_level
-        self.CheckingAudio = False         
+        self.CheckiInputUser = False         
  
         try:
             signal.signal(signal.SIGWINCH, self.resize)
@@ -176,24 +179,47 @@ class Control:
         else:
             self.screen_thread.option_history += str(self.screen_thread.options)
             self.screen_thread.options = 1
-        self.screen_thread.logo = self.texture[logo*2].lines            # Przypisanie linii z pierwszego obiektu Textures
-        self.screen_thread.mini_logo = self.texture[logo*2+1].lines     # Przypisanie linii z drugiego obiektu Textures
+        if logo>=0:
+            self.screen_thread.logo = self.texture[logo*2].lines            # Przypisanie linii z pierwszego obiektu Textures
+            self.screen_thread.mini_logo = self.texture[logo*2+1].lines     # Przypisanie linii z drugiego obiektu Textures
         self.screen_thread.element_menu_name = element_menu_name
         self.screen_opt = opt
+    
+    def getting_list_server(self, reload = False, search = None):
+        self.screen_thread.options = -10
+        if not reload:
+            self.screen_thread.connecting = "Connect"
+        elif search:
+            self.screen_thread.connecting = "Search"
+        else:
+            self.screen_thread.connecting = "Refresh"
+            
+        self.screen_thread.ServerList = self.onlineServer.get_server_list(search)
+        self.screen_thread.connecting = ""
+        if self.screen_thread.ServerList == []:
+            self.screen_thread.options = 2
+            return
+        if not reload:
+            self.screen_thread.options = 2
+            self.screen_opener(-1, self.screen_thread.ServerList, 32, False)
+            self.screen_thread.MultiPlayerServer["Visible"] = True
+        else:
+            self.screen_thread.options = 1
+            self.screen_thread.element_menu_name = self.screen_thread.ServerList
         
+    
+    
     def connecting_server(self):
         '''
         Łączenie z serwerem
         '''
-        self.screen_thread.connecting = True
-
-        if self.onlineServer.connected:
-            self.screen_thread.test = "d"
-        else:
-            self.onlineServer.connect_with_serwer()
-            self.screen_thread.test = "T"
-            
-        self.screen_thread.connecting = False
+        self.screen_thread.connecting != ""
+        if not self.onlineServer.connected:
+            if not self.onlineServer.connect_with_serwer():
+                self.screen_thread.connecting = ""
+                return
+                
+        self.screen_thread.connecting = ""
         
         
     def button_click_audio(self, name):
@@ -214,7 +240,7 @@ class Control:
         Jeżeli okno nie jest aktywne bądź zbyt małe nie obsługuję klawiszy
         '''
         try:
-            if gw.getActiveWindow().title != "CHRONOMYSTICA" or self.screen_thread.ZaMalyEkran:
+            if gw.getActiveWindow().title != "CHRONOMYSTICA" or self.screen_thread.TooSmallScreen:
                 return
         except AttributeError:
             pass
@@ -222,6 +248,8 @@ class Control:
 
         up_keys = self.keyboard.get_assigned_keys("UP")
         down_keys = self.keyboard.get_assigned_keys("DOWN")
+        left_keys = self.keyboard.get_assigned_keys("CONTROL_LEFT")
+        right_keys = self.keyboard.get_assigned_keys("CONTROL_RIGHT")
         enter_keys = self.keyboard.get_assigned_keys("ENTER")
         quit_keys = self.keyboard.get_assigned_keys("QUIT")
         # Obsługa klawisza "UP"
@@ -244,7 +272,11 @@ class Control:
         # Obsługa klawisza "DOWN"
         if any(self.keyboard.is_key_pressed(key) for key in down_keys):
             if current_time - self.last_down_press_time > self.key_repeat_delay:
-                if self.screen_thread.options < len(self.screen_thread.element_menu_name):
+                if self.screen_thread.MultiPlayerServer["Visible"]:
+                    if self.screen_thread.options < self.screen_thread.MultiPlayerServer["Size_Page"]+3:
+                        self.button_click_audio("button")
+                        self.screen_thread.options += 1
+                elif self.screen_thread.options < len(self.screen_thread.element_menu_name):
                     self.button_click_audio("button")
                     self.screen_thread.options += 1
                 elif self.screen_thread.KeyboardOPT:
@@ -257,6 +289,27 @@ class Control:
                 self.last_down_press_time = current_time
         else:
             self.last_down_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
+        
+        
+        # Obsługa klawisza "LEFT"
+        if self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Size_Page"]<self.screen_thread.options and any(self.keyboard.is_key_pressed(key) for key in left_keys):
+            if current_time - self.last_left_press_time > self.key_repeat_delay:
+                if self.screen_thread.MultiPlayerServer["Option"] > 1:
+                    self.button_click_audio("button")
+                    self.screen_thread.MultiPlayerServer["Option"]-=1
+                self.last_left_press_time = current_time
+        else:
+            self.last_left_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
+            
+        # Obsługa klawisza "RIGHT"
+        if self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Size_Page"]<self.screen_thread.options and any(self.keyboard.is_key_pressed(key) for key in right_keys):
+            if current_time - self.last_right_press_time > self.key_repeat_delay:
+                if self.screen_thread.MultiPlayerServer["Option"] < 2:
+                    self.button_click_audio("button")
+                    self.screen_thread.MultiPlayerServer["Option"]+=1
+                self.last_right_press_time = current_time
+        else:
+            self.last_right_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
 
         # Obsługa klawisza "ENTER"
         if any(self.keyboard.is_key_pressed(key) for key in enter_keys):
@@ -368,12 +421,47 @@ class Control:
                         self.screen_opener(1,["GRAPHICS", "CONTROLS", "AUDIO", "BACK"],2,True)
                 # Okno Graj
                 elif self.screen_opt == 3:
+                    # Przycisk Trybu_Gry SinglePlayer
                     if self.screen_thread.options == 1:
-                        pass
+                        if self.onlineServer.connected:
+                            self.onlineServer.connected = False
+                    # Przycisk Trybu_Gry MultiPlayer
                     elif self.screen_thread.options == 2:
-                        threading.Thread(target=self.connecting_server, daemon=True).start()
+                        threading.Thread(target=self.getting_list_server, daemon=True).start()
+                    # Przycisk Powrotu
                     elif self.screen_thread.options == 3:
-                        self.screen_opener(0,["START", "OPTIONS", "QUIT"],1, True)                          
+                        self.screen_opener(0,["START", "OPTIONS", "QUIT"],1, True)         
+                # Okno Graj MultiPlayer
+                elif self.screen_thread.MultiPlayerServer["Visible"] and self.screen_opt == 32:
+                    if self.screen_thread.MultiPlayerServer["Size_Page"]+1 == self.screen_thread.options:
+                        # Pole_Wyszukiwań
+                        if self.screen_thread.MultiPlayerServer["Option"] == 1:
+                            threading.Thread(target=self.user_input_search, daemon=True).start()
+                        # Przycisk Trybu_Gry MultiPlayer Szukanie
+                        elif self.screen_thread.MultiPlayerServer["Option"] == 2:
+                            threading.Thread(target=self.getting_list_server, args=(True, self.screen_thread.MultiPlayerServer["Search_Text"]), daemon=True).start()
+                    if self.screen_thread.MultiPlayerServer["Size_Page"]+2 == self.screen_thread.options:
+                        # Przycisk Trybu_Gry Poprzednia_Strona
+                        if self.screen_thread.MultiPlayerServer["Option"] == 1:
+                            if self.screen_thread.MultiPlayerServer["Page"]>1:
+                                self.screen_thread.options = 1
+                                self.screen_thread.MultiPlayerServer["Page"]-=1
+                        # Przycisk Trybu_Gry Nastepna_Strona
+                        elif self.screen_thread.MultiPlayerServer["Option"] == 2:
+                            if self.screen_thread.MultiPlayerServer["Page"]<self.screen_thread.MultiPlayerServer["MAX_Page"]:
+                                self.screen_thread.options = 1
+                                self.screen_thread.MultiPlayerServer["Page"]+=1
+                    if self.screen_thread.MultiPlayerServer["Size_Page"]+3 == self.screen_thread.options:
+                        # Przycisk Powrotu
+                        if self.screen_thread.MultiPlayerServer["Option"] == 1:
+                            self.screen_opener(7,["SINGLEPLAYER", "MULTIPLAYER", "BACK"],3,True)
+                            self.screen_thread.MultiPlayerServer["Page"] = 1
+                            self.screen_thread.MultiPlayerServer["Visible"] = False
+                            self.screen_thread.MultiPlayerServer["Search_Text"] = "."*11
+                        # Przycisk Odświerzenia
+                        elif self.screen_thread.MultiPlayerServer["Option"] == 2:
+                            threading.Thread(target=self.getting_list_server, args=(True,), daemon=True).start()
+                                         
                 self.last_enter_press_time = current_time
         else:
             self.last_enter_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
@@ -396,6 +484,11 @@ class Control:
                     self.temp_keys = self.keyboard.key_list.copy()
                     self.screen_thread.KeyboardOPT = False
                     self.screen_opener(4,["KEYBOARD", f"ADVANCED CONTROL [{'*' if self.advanced_control == True else ' '}]", "BACK"],22,True)
+                elif self.screen_opt == 32:
+                    self.screen_opener(7,["SINGLEPLAYER", "MULTIPLAYER", "BACK"],3,True)
+                    self.screen_thread.MultiPlayerServer["Page"] = 1
+                    self.screen_thread.MultiPlayerServer["Visible"] = False
+                    self.screen_thread.MultiPlayerServer["Search_Text"] = "."*11
                 self.last_quit_press_time = current_time
         else:
             self.last_quit_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
@@ -410,7 +503,7 @@ class Control:
             name(str):
                 Nazwa kontrolki audio dla jakiej ma być zmieniona głośność
         '''
-        self.CheckingAudio = True
+        self.CheckiInputUser = True
 
         volume_lvl = self.audio_level[name]
 
@@ -437,7 +530,39 @@ class Control:
         self.audio.set_audio_list([0],[self.audio_level["INPUTS"]*self.audio_level["MASTER"]/100])
         self.settings_r.save_config(self.limitetFPS, self.SHOW_FPS, self.quality, self.advanced_control, self.audio_level)
         time.sleep(0.5)
-        self.CheckingAudio = False
+        self.CheckiInputUser = False
+
+    def user_input_search(self):
+        self.CheckiInputUser = True
+        
+        text = self.screen_thread.MultiPlayerServer["Search_Text"]
+        textbuild = list(self.screen_thread.MultiPlayerServer["Search_Text"])  # Konwersja na listę dla modyfikowalności
+        pos = 11 - sum(char == '.' for char in text)
+
+        while True:
+            key_get = self.keyboard.user_input_getKeybord()
+
+            enter_keys = self.keyboard.get_assigned_keys("ENTER")
+            quit_keys = self.keyboard.get_assigned_keys("QUIT")
+            
+            
+            if any(key_get == key for key in quit_keys):
+                self.screen_thread.MultiPlayerServer["Search_Text"] = text
+                break
+            if re.match("'"+"[a-zA-Z0-9]"+"'", key_get) and pos<11:
+                textbuild[pos] = key_get[1]
+                self.screen_thread.MultiPlayerServer["Search_Text"] = ''.join(textbuild)
+                pos += 1
+            if key_get == "Key.backspace" and pos>0:
+                pos -= 1
+                textbuild[pos] = "."
+                self.screen_thread.MultiPlayerServer["Search_Text"] = ''.join(textbuild)
+            if any(key_get == key for key in enter_keys):
+                break
+
+
+        time.sleep(0.5)
+        self.CheckiInputUser = False
 
 
     def position(self, direction):
@@ -471,8 +596,14 @@ class Control:
             if deltaU >= 1:
                 if self.screen_opt == 0:
                     self.user_input()
-                elif not self.screen_thread.CheckingKeyboard and not self.CheckingAudio:
-                    self.user_input_menu()
+                elif not self.screen_thread.CheckingKeyboard and not self.CheckiInputUser and self.screen_thread.connecting == "":
+                    try:
+                        self.user_input_menu()
+                    except:
+                        print("Błąd obsługi klawiszy")
+                        self.running = False
+                if self.onlineServer.connected:
+                    threading.Thread(target=self.onlineServer.monitor_connection, daemon=True).start()
                 updates += 1
                 deltaU -= 1
 
@@ -489,7 +620,7 @@ class Control:
                 self.fps = frames
                 frames = 0
                 updates = 0
-        self.onlineServer.monitor_heart = False
+        self.onlineServer.connected = False
                     
 
 
@@ -501,5 +632,4 @@ class Control:
         if self.resized or self.screen_thread.screen.getch() == curses.KEY_RESIZE:
             self.screen_thread.resize()
             self.resized = False
-        self.screen_thread.test = int(self.onlineServer.ping)
         self.screen_thread.update(round(self.fps, 1))
