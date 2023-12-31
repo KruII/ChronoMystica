@@ -9,6 +9,8 @@ from keybord_action import Keyboard
 from audio_player import Audio
 from reader_settings import Settings_R
 from connect_with_server import OnlineServer
+from save_loader import Save_load
+from game_render import GamePlay
 
 class Control:
     
@@ -36,6 +38,7 @@ class Control:
         self.audio = Audio()
         self.settings_r = Settings_R()
         self.onlineServer = OnlineServer()
+        self.saves = Save_load()
         self.screen_opt = 1
         self.fps = 0                                                                               # Ustawia początkową wartość FPS na 0
         self.limitetFPS, self.SHOW_FPS, self.quality, self.advanced_control, self.audio_level = self.settings_r.check_is_config()
@@ -207,8 +210,13 @@ class Control:
             self.screen_thread.options = 1
             self.screen_thread.element_menu_name = self.screen_thread.ServerList
         
-    
-    
+    def save_loader_menu(self):
+        saves = self.saves.saves.copy()
+        while len(saves)<3:
+            saves.append("BRAK")
+        self.screen_thread.SinglePlayerScreen["Save_amount"] = len(saves)
+        return saves
+
     def connecting_server(self):
         '''
         Łączenie z serwerem
@@ -276,6 +284,10 @@ class Control:
                     if self.screen_thread.options < self.screen_thread.MultiPlayerServer["Size_Page"]+3:
                         self.button_click_audio("button")
                         self.screen_thread.options += 1
+                if self.screen_thread.SinglePlayerScreen["Visible"]:
+                    if self.screen_thread.options < 3:
+                        self.button_click_audio("button")
+                        self.screen_thread.options += 1
                 elif self.screen_thread.options < len(self.screen_thread.element_menu_name):
                     self.button_click_audio("button")
                     self.screen_thread.options += 1
@@ -292,21 +304,35 @@ class Control:
         
         
         # Obsługa klawisza "LEFT"
-        if self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Size_Page"]<self.screen_thread.options and any(self.keyboard.is_key_pressed(key) for key in left_keys):
+        if ((self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Size_Page"]<self.screen_thread.options) or self.screen_thread.SinglePlayerScreen["Visible"]) and any(self.keyboard.is_key_pressed(key) for key in left_keys):
             if current_time - self.last_left_press_time > self.key_repeat_delay:
-                if self.screen_thread.MultiPlayerServer["Option"] > 1:
+                if self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Option"] > 1:
                     self.button_click_audio("button")
                     self.screen_thread.MultiPlayerServer["Option"]-=1
+                elif self.screen_thread.SinglePlayerScreen["Visible"]:
+                    if self.screen_thread.SinglePlayerScreen["Option"] == 1 and self.screen_thread.SinglePlayerScreen["Save_slot"] > 0 and self.screen_thread.options==1:
+                        self.button_click_audio("button")
+                        self.screen_thread.SinglePlayerScreen["Save_slot"]-=1
+                    elif self.screen_thread.SinglePlayerScreen["Option"] > 1:
+                        self.button_click_audio("button")
+                        self.screen_thread.SinglePlayerScreen["Option"]-=1
                 self.last_left_press_time = current_time
         else:
             self.last_left_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
             
         # Obsługa klawisza "RIGHT"
-        if self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Size_Page"]<self.screen_thread.options and any(self.keyboard.is_key_pressed(key) for key in right_keys):
+        if ((self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Size_Page"]<self.screen_thread.options) or self.screen_thread.SinglePlayerScreen["Visible"]) and any(self.keyboard.is_key_pressed(key) for key in right_keys):
             if current_time - self.last_right_press_time > self.key_repeat_delay:
-                if self.screen_thread.MultiPlayerServer["Option"] < 2:
+                if self.screen_thread.MultiPlayerServer["Visible"] and self.screen_thread.MultiPlayerServer["Option"] < 2:
                     self.button_click_audio("button")
                     self.screen_thread.MultiPlayerServer["Option"]+=1
+                elif self.screen_thread.SinglePlayerScreen["Visible"]:
+                    if self.screen_thread.SinglePlayerScreen["Option"] == 3 and self.screen_thread.SinglePlayerScreen["Save_slot"] < self.screen_thread.SinglePlayerScreen["Save_amount"]-4 and self.screen_thread.options==1:
+                        self.button_click_audio("button")
+                        self.screen_thread.SinglePlayerScreen["Save_slot"]+=1
+                    elif self.screen_thread.SinglePlayerScreen["Option"] < 3:
+                        self.button_click_audio("button")
+                        self.screen_thread.SinglePlayerScreen["Option"]+=1
                 self.last_right_press_time = current_time
         else:
             self.last_right_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
@@ -336,7 +362,7 @@ class Control:
                     # Przycisk Opcji Audio
                     elif self.screen_thread.options == 3:
                         self.screen_thread.AudioOPT = True
-                        self.screen_opener(6,["MASTER", "MUSIC", "GAME", "INPUTS", "BACK"],23,False) #Napisać wyświetlanie w game_screen_srart oraz class audio_opener 
+                        self.screen_opener(6,["MASTER", "MUSIC", "GAME", "INPUTS", "BACK"],23,False)
                     # Przycisk Powrotu
                     elif self.screen_thread.options == 4:
                         self.screen_opener(0,["START", "OPTIONS", "QUIT"],1,True)
@@ -423,8 +449,8 @@ class Control:
                 elif self.screen_opt == 3:
                     # Przycisk Trybu_Gry SinglePlayer
                     if self.screen_thread.options == 1:
-                        if self.onlineServer.connected:
-                            self.onlineServer.connected = False
+                        self.screen_opener(-1, self.save_loader_menu(), 31, False)
+                        self.screen_thread.SinglePlayerScreen["Visible"] = True
                     # Przycisk Trybu_Gry MultiPlayer
                     elif self.screen_thread.options == 2:
                         threading.Thread(target=self.getting_list_server, daemon=True).start()
@@ -461,6 +487,38 @@ class Control:
                         # Przycisk Odświerzenia
                         elif self.screen_thread.MultiPlayerServer["Option"] == 2:
                             threading.Thread(target=self.getting_list_server, args=(True,), daemon=True).start()
+                # Okno Graj SinglePlayer
+                elif self.screen_thread.SinglePlayerScreen["Visible"] and self.screen_opt == 31:
+                    if self.screen_thread.options == 1:
+                        if self.screen_thread.SinglePlayerScreen["Option"] == 1:
+                            self.singleplayer_menu_screen(1)
+                        elif self.screen_thread.SinglePlayerScreen["Option"] == 2:
+                            self.singleplayer_menu_screen(2)
+                        elif self.screen_thread.SinglePlayerScreen["Option"] == 3:
+                            self.singleplayer_menu_screen(3)
+                    elif self.screen_thread.options == 2:
+                        if self.screen_thread.SinglePlayerScreen["Option"] == 1:
+                            self.screen_active_single_panel(1)
+                        elif self.screen_thread.SinglePlayerScreen["Option"] == 2:
+                            self.screen_active_single_panel(2)
+                        elif self.screen_thread.SinglePlayerScreen["Option"] == 3:
+                            self.screen_active_single_panel(3)
+                    elif self.screen_thread.options == 3:
+                        if self.screen_thread.SinglePlayerScreen["Option"] == 1:
+                            threading.Thread(target=self.user_input_search, args=(True,), daemon=True).start()
+                        elif self.screen_thread.SinglePlayerScreen["Option"] == 2:
+                            temp_save_name = "SAVE_"+str(len(self.saves.saves))
+                            self.saves.save_file(temp_save_name)
+                            self.screen_thread.element_menu_name = self.save_loader_menu()
+                            self.screen_opt = 0
+                            self.screen_thread = GamePlay(self.screen, self.quality, self.saves.loading_saves(temp_save_name, False))
+                        elif self.screen_thread.SinglePlayerScreen["Option"] == 3:
+                            self.screen_opener(7,["SINGLEPLAYER", "MULTIPLAYER", "BACK"],3,True)
+                            self.screen_thread.SinglePlayerScreen["Save_slot"] = 0
+                            self.screen_thread.SinglePlayerScreen["Option"] = 1
+                            self.screen_thread.SinglePlayerScreen["Active"] = 0
+                            self.screen_thread.SinglePlayerScreen["Visible"] = False
+                            self.screen_thread.SinglePlayerScreen["Search_Text"] = "."*11
                                          
                 self.last_enter_press_time = current_time
         else:
@@ -489,11 +547,47 @@ class Control:
                     self.screen_thread.MultiPlayerServer["Page"] = 1
                     self.screen_thread.MultiPlayerServer["Visible"] = False
                     self.screen_thread.MultiPlayerServer["Search_Text"] = "."*11
+                elif self.screen_opt == 31:
+                    self.screen_opener(7,["SINGLEPLAYER", "MULTIPLAYER", "BACK"],3,True)
+                    self.screen_thread.SinglePlayerScreen["Save_slot"] = 0
+                    self.screen_thread.SinglePlayerScreen["Option"] = 1
+                    self.screen_thread.SinglePlayerScreen["Active"] = 0
+                    self.screen_thread.SinglePlayerScreen["Visible"] = False
+                    self.screen_thread.SinglePlayerScreen["Search_Text"] = "."*11
                 self.last_quit_press_time = current_time
         else:
             self.last_quit_press_time = 0  # Reset, jeśli klawisz nie jest wciśnięty
             
-
+    def screen_active_single_panel(self, number):
+        if self.screen_thread.SinglePlayerScreen["Active"] == number: 
+            self.screen_thread.SinglePlayerScreen["Active"] = 0
+        else:
+            self.screen_thread.SinglePlayerScreen["Active"] = number
+        
+    def singleplayer_menu_screen(self, number):
+        if self.screen_thread.SinglePlayerScreen["Active"] == 1:
+            try:
+                self.saves.reset_saves(self.screen_thread.SinglePlayerScreen["Matching_Tab"][number + self.screen_thread.SinglePlayerScreen["Save_slot"]-1])
+                self.screen_thread.element_menu_name = self.save_loader_menu()
+            except:
+                # Plik nie istnieje
+                pass
+        elif self.screen_thread.SinglePlayerScreen["Active"] == 2:
+            try:
+                self.saves.loading_saves(self.screen_thread.SinglePlayerScreen["Matching_Tab"][number + self.screen_thread.SinglePlayerScreen["Save_slot"]-1])
+                self.screen_thread.element_menu_name = self.save_loader_menu()
+            except:
+                # Plik nie istnieje
+                pass
+        elif self.screen_thread.SinglePlayerScreen["Active"] == 3:
+            try:
+                self.screen_thread.SinglePlayerScreen["Save_slot"]-=1
+                self.saves.del_saves(self.screen_thread.SinglePlayerScreen["Matching_Tab"][number + self.screen_thread.SinglePlayerScreen["Save_slot"]])
+                self.screen_thread.element_menu_name = self.save_loader_menu()
+            except:
+                self.screen_thread.element_menu_name = self.save_loader_menu()
+                # Plik nie istnieje
+                pass
         
     def user_input_audio(self, name):
         '''
@@ -532,11 +626,15 @@ class Control:
         time.sleep(0.5)
         self.CheckiInputUser = False
 
-    def user_input_search(self):
+    def user_input_search(self, single = False):
         self.CheckiInputUser = True
-        
-        text = self.screen_thread.MultiPlayerServer["Search_Text"]
-        textbuild = list(self.screen_thread.MultiPlayerServer["Search_Text"])  # Konwersja na listę dla modyfikowalności
+
+        if single:
+            self.screen_thread.SinglePlayerScreen["Save_slot"] = 0
+        current_section = self.screen_thread.SinglePlayerScreen if single else self.screen_thread.MultiPlayerServer
+
+        text = current_section["Search_Text"]
+        textbuild = list(text)
         pos = 11 - sum(char == '.' for char in text)
 
         while True:
@@ -544,25 +642,50 @@ class Control:
 
             enter_keys = self.keyboard.get_assigned_keys("ENTER")
             quit_keys = self.keyboard.get_assigned_keys("QUIT")
-            
-            
+
             if any(key_get == key for key in quit_keys):
-                self.screen_thread.MultiPlayerServer["Search_Text"] = text
+                current_section["Search_Text"] = text
                 break
-            if re.match("'"+"[a-zA-Z0-9]"+"'", key_get) and pos<11:
+            if re.match("'"+"[a-zA-Z0-9]"+"'", key_get) and pos < 11:
                 textbuild[pos] = key_get[1]
-                self.screen_thread.MultiPlayerServer["Search_Text"] = ''.join(textbuild)
                 pos += 1
-            if key_get == "Key.backspace" and pos>0:
+                current_section["Search_Text"] = ''.join(textbuild)
+            if key_get == "Key.backspace" and pos > 0:
                 pos -= 1
                 textbuild[pos] = "."
-                self.screen_thread.MultiPlayerServer["Search_Text"] = ''.join(textbuild)
+                current_section["Search_Text"] = ''.join(textbuild)
             if any(key_get == key for key in enter_keys):
                 break
 
-
         time.sleep(0.5)
         self.CheckiInputUser = False
+        
+        
+    def user_input(self):
+        try:
+            if gw.getActiveWindow().title != "CHRONOMYSTICA":
+                return
+        except AttributeError:
+            pass
+        
+        quit_keys = self.keyboard.get_assigned_keys("QUIT")
+        left = self.keyboard.get_assigned_keys("S_LEFT")
+        right = self.keyboard.get_assigned_keys("S_RIGHT")
+        up = self.keyboard.get_assigned_keys("S_FORWARD")
+        down = self.keyboard.get_assigned_keys("S_BACKWARD")
+
+
+        if any(self.keyboard.is_key_pressed(key) for key in left):
+            self.screen_thread.me_player.turn(-self.screen_thread.me_player.turn_speed)
+        elif any(self.keyboard.is_key_pressed(key) for key in right):
+            self.screen_thread.me_player.turn(self.screen_thread.me_player.turn_speed)
+        if any(self.keyboard.is_key_pressed(key) for key in up):
+            self.screen_thread.me_player.move_forward()
+        elif any(self.keyboard.is_key_pressed(key) for key in down):
+            self.screen_thread.me_player.move_backward()
+        
+        if any(self.keyboard.is_key_pressed(key) for key in quit_keys):
+            self.running = False
 
 
     def position(self, direction):
@@ -600,8 +723,12 @@ class Control:
                     try:
                         self.user_input_menu()
                     except:
-                        print("Błąd obsługi klawiszy")
-                        self.running = False
+                        if self.screen_opt != 0:
+                            print("Błąd obsługi klawiszy")
+                            self.running = False
+                        else:
+                            print("Błąd Gry")
+                            #self.running = False
                 if self.onlineServer.connected:
                     threading.Thread(target=self.onlineServer.monitor_connection, daemon=True).start()
                 updates += 1
@@ -622,7 +749,10 @@ class Control:
                 updates = 0
         self.onlineServer.connected = False
                     
-
+    '''
+    TODO:
+        Dla nowego zapisu Kreator postaci i ustawienia świata dla jednej postaci
+    '''
 
     def update(self):
         '''

@@ -38,7 +38,7 @@ class GameStartScreen:
         self.animation_connecting = [0, 0, 5,                                      # Aktualny znak, Opóźnienie++, Opóźnienie_MAX
                                      '|', '/', '—', '\\', '|', '/', '—', '\\']     # Znaki Animacji 
         self.test =""                                                              # String do testowania działania
-        self.ServerList = None                                                       # Lista Serwerów
+        self.ServerList = None                                                     # Lista Serwerów
         self.MultiPlayerServer = {
                                   "Page":        1,
                                   "MAX_Page":    1,
@@ -47,6 +47,15 @@ class GameStartScreen:
                                   "Visible":     False,
                                   "Search_Text": "."*11,
                                   "Refresh":     False,
+                                 }
+        self.SinglePlayerScreen = {
+                                  "Save_amount": 1,
+                                  "Option":      1,
+                                  "Save_slot":   0,
+                                  "Visible":     False,
+                                  "Search_Text": "."*11,
+                                  "Active":      0,
+                                  "Matching_Tab":[],
                                  }
         
         self.resize()                                                              # Inicjacja ustalenia miejsca w oknie
@@ -117,13 +126,13 @@ class GameStartScreen:
             frame_width = len(element) + 4
             
         # Górna linia ramki
-        top_frame = '#' * frame_width
+        top_frame = '╔' + '═'* (frame_width-2) + '╗'
 
         # Centrowanie elementu w ramce
-        framed_element = f"# {element.center(frame_width - 4)} #"
+        framed_element = f"║ {element.center(frame_width - 4)} ║"
 
         # Dolna linia ramki
-        bottom_frame = '#' * frame_width
+        bottom_frame = '╚' + '═'* (frame_width-2) + '╝'
 
         # Łączenie wszystkiego w całość
         framed_menu_element = f"{top_frame}\n{framed_element}\n{bottom_frame}"
@@ -159,6 +168,76 @@ class GameStartScreen:
         
         return server_pages
 
+    def slot_save_creator(self):
+        tab = []
+        search_text = self.SinglePlayerScreen["Search_Text"].replace(".", "").upper()  # Ignorowanie kropek i zamiana na wielkie litery
+        matching_names = []  # Lista pasujących nazw
+
+        # Filtrowanie nazw zaczynających się od szukanego tekstu
+        matching_names.extend(
+            name for name in self.element_menu_name
+            if name != "BRAK" and name["Name"].replace(".", "").upper().startswith(search_text)
+        )
+
+        # Filtrowanie nazw zawierających szukany tekst, ale nie zaczynających się od niego
+        matching_names.extend(
+            name for name in self.element_menu_name
+            if name not in matching_names and name != "BRAK" and search_text in name["Name"].replace(".", "").upper()
+        )
+        while len(matching_names)<3:
+            matching_names.append("BRAK")
+        matching_names.append("BRAK")
+        self.SinglePlayerScreen["Save_amount"] = len(matching_names)
+        self.SinglePlayerScreen["Matching_Tab"]=matching_names
+        tab.append(((" ┌"+"─"*(self.width//3-4)+"┐ ")*3))
+        tab.append(''.join(
+            " │" +
+            " " * ((self.width // 3 - 4 - len(name)) // 2) +
+            name +
+            " " * ((self.width // 3 - 4 - len(name) + 1) // 2) +  # Dodajemy 1, jeśli potrzebujemy nieparzystej liczby spacji
+            "│ "
+            for i in range(3)
+            for name in [("EMPTY" if matching_names[i+self.SinglePlayerScreen["Save_slot"]] == "BRAK" else matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Name"][:11])]))
+        tab.append(((" ├"+"─"*(self.width//3-4)+"┤ ")*3))
+        for _ in range(self.height-18):
+            tab.append(((" │"+" "*(self.width//3-4)+"│ ")*3))
+        tab.append(((" ├"+"─"*(self.width//3-4)+"┤ ")*3))
+        # Dla daty i czasu
+        tab.append(''.join(
+            " │" +
+            " " * ((self.width // 3 - 4 - len(time_text)) // 2) +
+            time_text +
+            " " * ((self.width // 3 - 4 - len(time_text) + 1) // 2) +
+            "│ "
+            for i in range(3)
+            for time_text in [("CREATE" if matching_names[i+self.SinglePlayerScreen["Save_slot"]] == "BRAK" else matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["hour"] + ":" + ("0"+matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["minute"] if int(matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["minute"])<10 else matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["minute"]))[:11]]
+        ))
+
+        # Dla daty
+        tab.append(''.join(
+            " │" +
+            " " * ((self.width // 3 - 4 - len(date_text)) // 2) +
+            date_text +
+            " " * ((self.width // 3 - 4 - len(date_text) + 1) // 2) +
+            "│ "
+            for i in range(3)
+            for date_text in [("SAVE" if matching_names[i+self.SinglePlayerScreen["Save_slot"]] == "BRAK" else matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["day"] + "/" + matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["month"] + "/" + matching_names[i+self.SinglePlayerScreen["Save_slot"]]["Date"]["year"])[:11]]
+        ))
+        tab.append(((" └"+"─"*(self.width//3-4)+"┘ ")*3))
+        return tab
+
+    def buttons_slots_3(self, tabs):
+        tab = []
+        tab.append((" ┌"+"─"*(self.width//3-4)+"┐ ")*3)
+        tab.append(''.join(
+            " │" +
+            " " * ((self.width // 3 - 4 - len(name)) // 2) +
+            name +
+            " " * ((self.width // 3 - 4 - len(name) + 1) // 2) +  # Dodajemy 1, jeśli potrzebujemy nieparzystej liczby spacji
+            "│ "
+            for name in tabs))
+        tab.append((" └"+"─"*(self.width//3-4)+"┘ ")*3)
+        return tab
 
     def load_menu(self, fps):
         '''
@@ -216,6 +295,25 @@ class GameStartScreen:
             except:
                 self.MultiPlayerServer["Page"] = 1
                 self.options = 1
+            return
+        elif self.SinglePlayerScreen["Visible"] == True:
+            if self.height < 24 or self.width < 69:
+                    self.TooSmallScreen = True
+                    self.buffer[1] = self.center_text("Zamaly ekran")
+                    self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
+                    return
+            start_line = 2
+            for line in self.slot_save_creator():
+                self.buffer[start_line] = " "+line+"  "
+                start_line += 1
+            start_line += 1
+            for line in self.buttons_slots_3(["RESET", "LOAD", "DEL"]):
+                self.buffer[start_line] = " "+line+"  "
+                start_line += 1
+            for line in self.buttons_slots_3([f"SEARCH: {self.SinglePlayerScreen['Search_Text']}", "CREATE SAVE", "BACK"]):
+                self.buffer[start_line] = " "+line+"  "
+                start_line += 1
+            self.buffer[self.height-1] = (f"Version: {self.version} ").rjust(self.width)
             return
         scaled_logo = self.scale_logo()
         if scaled_logo == ["Zamaly ekran"]:
@@ -298,7 +396,7 @@ class GameStartScreen:
         for row_num, line_to_display in enumerate(self.buffer):
             if row_num == len(self.buffer) - 1:             # Ostatnia linia (wersja)
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(2))
-            elif self.logo_options + self.logo_opt*self.options+self.options <= row_num < self.logo_options + self.logo_opt*self.options+self.options + 3 and not self.KeyboardOPT and not self.MultiPlayerServer["Visible"]:
+            elif self.logo_options + self.logo_opt*self.options+self.options <= row_num < self.logo_options + self.logo_opt*self.options+self.options + 3 and not self.KeyboardOPT and not self.MultiPlayerServer["Visible"] and not self.SinglePlayerScreen["Visible"]:
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
             elif self.KeyboardOPT and self.logo_options + 4 + self.options == row_num:
                 self.screen.addstr(row_num, 0, line_to_display, curses.color_pair(1))
@@ -328,6 +426,18 @@ class GameStartScreen:
                 elif self.MultiPlayerServer["Option"] == 2: 
                     self.screen.addstr(row_num, self.width-1, line_to_display[self.width-1:self.width])
                     self.screen.addstr(row_num, self.width-9, line_to_display[self.width-9:self.width-1], curses.color_pair(1))
+            elif self.SinglePlayerScreen["Visible"] and self.options == 1 and 2<=row_num<len(self.buffer)-9:
+                self.screen.addstr(row_num, 0, line_to_display)
+                self.screen.addstr(row_num, 2+(self.width//3)*(self.SinglePlayerScreen["Option"]-1), line_to_display[2+(self.width//3)*(self.SinglePlayerScreen["Option"]-1):(self.width//3)*self.SinglePlayerScreen["Option"]], curses.color_pair(1))
+            elif self.SinglePlayerScreen["Visible"] and (self.options == 2 or self.SinglePlayerScreen["Active"]!=0) and len(self.buffer)-8<=row_num<len(self.buffer)-5:
+                self.screen.addstr(row_num, 0, line_to_display)
+                if self.options == 2:
+                    self.screen.addstr(row_num, 2+(self.width//3)*(self.SinglePlayerScreen["Option"]-1), line_to_display[2+(self.width//3)*(self.SinglePlayerScreen["Option"]-1):(self.width//3)*self.SinglePlayerScreen["Option"]], curses.color_pair(1))
+                if self.SinglePlayerScreen["Active"]!=0:
+                    self.screen.addstr(row_num, 2+(self.width//3)*(self.SinglePlayerScreen["Active"]-1), line_to_display[2+(self.width//3)*(self.SinglePlayerScreen["Active"]-1):(self.width//3)*self.SinglePlayerScreen["Active"]], curses.color_pair(1))
+            elif self.SinglePlayerScreen["Visible"] and self.options == 3 and len(self.buffer)-5<=row_num<len(self.buffer)-2:
+                self.screen.addstr(row_num, 0, line_to_display)
+                self.screen.addstr(row_num, 2+(self.width//3)*(self.SinglePlayerScreen["Option"]-1), line_to_display[2+(self.width//3)*(self.SinglePlayerScreen["Option"]-1):(self.width//3)*self.SinglePlayerScreen["Option"]], curses.color_pair(1))
             else:
                 self.screen.addstr(row_num, 0, line_to_display)
         self.screen.refresh()
